@@ -23,17 +23,20 @@ pip3 install -r requirements.txt
 echo ====================
 echo Creating Shortcut
 echo ====================
-echo "[Desktop Entry]" >> ~/Desktop/mmlpi.desktop
-echo "Name=MMLPI" >> ~/Desktop/mmlpi.desktop
-echo "Comment=Minecraft Launcher" >> ~/Desktop/mmlpi.desktop
-echo "Exec=python3 $(pwd)/mmlpi.py" >> ~/Desktop/mmlpi.desktop
-echo "Path=$(pwd)" >> ~/Desktop/mmlpi.desktop
-echo "Icon=" >> ~/Desktop/mmlpi.desktop
-echo "Terminal=true" >> ~/Desktop/mmlpi.desktop
-echo "Type=Application" >> ~/Desktop/mmlpi.desktop
-echo "Encoding=UTF-8" >> ~/Desktop/mmlpi.desktop
-chmod +x ~/Desktop/mmlpi.desktop
+USER_HOME=$(eval echo ~${SUDO_USER})
+echo "[Desktop Entry]" >> ${USER_HOME}/Desktop/mmlpi.desktop
+echo "Name=MMLPI" >> ${USER_HOME}/Desktop/mmlpi.desktop
+echo "Comment=Minecraft Launcher" >> ${USER_HOME}/Desktop/mmlpi.desktop
+echo "Exec=python3 $(pwd)/mmlpi.py" >> ${USER_HOME}/Desktop/mmlpi.desktop
+echo "Path=$(pwd)" >> ${USER_HOME}/Desktop/mmlpi.desktop
+echo "Icon=" >> ${USER_HOME}/Desktop/mmlpi.desktop
+echo "Terminal=true" >> ${USER_HOME}/Desktop/mmlpi.desktop
+echo "Type=Application" >> ${USER_HOME}/Desktop/mmlpi.desktop
+echo "Encoding=UTF-8" >> ${USER_HOME}/Desktop/mmlpi.desktop
+chmod +x ${USER_HOME}/Desktop/mmlpi.desktop
 echo ====================
 echo Done, Starting
 echo ====================
+chmod -R 777 .
+chmod +x mmlpi.py
 python3 mmlpi.py
