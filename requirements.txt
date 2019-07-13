@@ -1,0 +1,5 @@
+requests==2.18.4
+inquirer==2.6.3
+cli_ui==0.9.1
+psutil==5.6.3
+beautifulsoup4==4.7.1
