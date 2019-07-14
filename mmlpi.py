@@ -17,14 +17,22 @@ from zipfile import ZipFile
 
 ROOTDIR = 'minecraft/'
 
-def downloadVersion(vid, optifine):
+def downloadVersion(vid, optifine, lwjgl3=False):
+
     r = requests.get('https://launchermeta.mojang.com/mc/game/version_manifest.json')
     version = requests.get(r.json()['versions'][vid]['url']).json()
 
     assetsURL = version['assetIndex']['url']
     downloadAssets(assetsURL, version["id"])
-    downloadLibraries(version['libraries'])
-    downloadRPiNatives()
+    
+    if lwjgl3:
+        libPaths = downloadLibraries(version['libraries'], lwjgl3=True)
+        downloadLWJGL3Natives()
+        nativesPath = os.path.abspath(os.path.join(ROOTDIR, 'bin/natives/LWJGL3/'))
+    else:
+        downloadRPiNatives()
+        libPaths = downloadLibraries(version['libraries'])
+        nativesPath = os.path.abspath(os.path.join(ROOTDIR, 'bin/natives/'))
 
     clientPath = os.path.abspath(os.path.join(ROOTDIR, f'versions/{version["id"]}'))
     if not os.path.isdir(clientPath):
@@ -43,13 +51,16 @@ def downloadVersion(vid, optifine):
         else:
             installOptifine(version['id'], of)
 
-    getStartScript(version["id"], version['mainClass'])
+    getStartScript(version["id"], version['mainClass'], libPaths, nativesPath)
 
-def downloadLibraries(lol): #List of Libraries
+def downloadLibraries(lol, lwjgl3=False, lwjgl3arch='arm32'): #List of Libraries
     libsPath = os.path.abspath(os.path.join(ROOTDIR, 'libraries/'))
     if not os.path.isdir(libsPath):
         os.makedirs(libsPath)
     counter = 0
+
+    libs = []
+
     for i in lol:
         if 'artifact' in i['downloads']:
             path = os.path.join(libsPath, i['downloads']['artifact']['path'])
@@ -60,6 +71,7 @@ def downloadLibraries(lol): #List of Libraries
             url = i['downloads']['artifact']['url']
             f.write(requests.get(url).content)
             f.close()
+            libs.append(path)
 
         if 'classifiers' in i['downloads'] and 'natives-linux' in i['downloads']['classifiers']:
             path = os.path.join(libsPath, i['downloads']['classifiers']['natives-linux']['path'])
@@ -67,14 +79,22 @@ def downloadLibraries(lol): #List of Libraries
             if not os.path.isdir(folder):
                 os.makedirs(folder)
             f = open(path, 'wb')
-            url = i['downloads']['classifiers']['natives-linux']['url']
+            if not lwjgl3:
+                url = i['downloads']['classifiers']['natives-linux']['url']
+            else:
+                module = i['name'].split(':')[-2]
+                url = f'https://build.lwjgl.org/nightly/bin/{module}/{module}-natives-linux-{lwjgl3arch}.jar'
+                if requests.get(url).status_code != 200:
+                    url = i['downloads']['classifiers']['natives-linux']['url']
             f.write(requests.get(url).content)
             f.close()
 
+        # TODO: Native arm32 updater
         cli_ui.info_count(counter, len(lol), f"Downloaded {i['name']}")
         counter+=1
         cli_ui.info_progress('Libraries', counter, len(lol))
 
+    return libs
 def downloadAssets(url, v):
     r = requests.get(url)
     
@@ -105,22 +125,28 @@ def downloadAssets(url, v):
         cli_ui.info_count(counter, len(assets['objects'].keys()), f'Downloaded {i}')
         cli_ui.info_progress('Assets', counter, len(assets['objects'].keys()))
 
-def downloadNatives(arch='arm32'):
-    natives = ['libjinput-linux.so', 'liblwjgl.so', 'libopenal.so', 'libglfw.so', 'liblwjgl_opengl.so',
-    'liblwjgl_stb.so']
+def downloadLWJGL3Natives(arch='arm32'):
+    natives = ['liblwjgl.so', 'libopenal.so', 'libglfw.so', 'liblwjgl_opengl.so', 'liblwjgl_stb.so']
 
-    nativesPath = os.path.abspath(os.path.join(ROOTDIR, 'bin/natives'))
+    nativesPath = os.path.abspath(os.path.join(ROOTDIR, 'bin/natives/LWJGL3'))
     if not os.path.isdir(nativesPath):
         os.makedirs(nativesPath)
 
+    counter = 0
     for i in natives:
-        #url = f'https://build.lwjgl.org/release/3.2.2/linux/{arch}/{i}'
         url = f'https://build.lwjgl.org/nightly/linux/{arch}/{i}'
         path = os.path.join(nativesPath, i)
+        data = requests.get(url).content
         f = open(path, 'wb')
-        f.write(requests.get(url).content)
+        f.write(data)
         f.close()
-        print(f'Saved {i}')
+        path = os.path.join(nativesPath, i.replace('.so', '32.so'))
+        f = open(path, 'wb')
+        f.write(data)
+        f.close()
+        counter += 1
+        cli_ui.info_count(counter, len(natives), f'Downloaded {i}')
+        cli_ui.info_progress('Natives', counter, len(natives))
 
 def downloadRPiNatives():
     natives = ['https://dl.dropboxusercontent.com/s/4oxcvz3ky7a3x6f/liblwjgl.so',
@@ -142,13 +168,7 @@ def downloadRPiNatives():
         cli_ui.info(f'Downloaded {os.path.basename(i)}')
         cli_ui.info_progress(f'ARM Libraries', counter, len(natives))
         
-def getStartScript(v, mainClass):
-    libs = []
-    for r, d, f in os.walk(os.path.abspath(os.path.join(ROOTDIR, 'libraries/'))):
-        for i in f:
-            if 'natives' not in i and '.jar' in i:
-                libs.append(os.path.join(r, i))
-
+def getStartScript(v, mainClass, libs, natives):
     mcjar = os.path.abspath(os.path.join(ROOTDIR, f'versions/{v}/{v}.jar'))
     libs = ':'.join(libs) + f':{mcjar}'
 
@@ -159,7 +179,8 @@ def getStartScript(v, mainClass):
         'mainClass': mainClass,
         'gameDir': os.path.abspath(ROOTDIR),
         'cp': libs,
-        'version': v
+        'version': v,
+        'natives': natives
     })
     f = open(p, 'w')
     f.write(json.dumps(cur))
@@ -277,7 +298,7 @@ def launch(vid):
             '-XX:+UseConcMarkSweepGC',
             '-XX:+CMSIncrementalMode',
             '-XX:-UseAdaptiveSizePolicy',
-            f'-Djava.library.path={data["versions"][vid]["gameDir"]}/bin/natives/',
+            f'-Djava.library.path={data["versions"][vid]["natives"]}',
             '-cp', data["versions"][vid]['cp'],
             data["versions"][vid]['mainClass'],
             '--username', data['auth']['username'],
@@ -328,26 +349,35 @@ def launcherUI():
     if (c == 1):
         os.system('clear')
         versions = requests.get('https://launchermeta.mojang.com/mc/game/version_manifest.json').json()['versions']
+
+        cli_ui.warning('LWJGL3 Versions Are Poorly Optimized and Buggy!')
+
+        ch = ['Snapshots', 'Experimental (LWJGL3)', 'Install Optifine (If Available)']
+        c = inquirer.prompt([inquirer.Checkbox('c', message='Filters:', choices=ch)])['c']
+        
+        lwjgl3ver = versions.index(next(i for i in versions if i["id"] == "1.12.2"))  
+        if (ch[1] in c):
+            firstVer = 0
+        else:
+            firstVer = lwjgl3ver
+        
         releases = []
         snapshots = []
-        for i in range(121, 274):
+        for i in range(firstVer, 274):
             if (versions[i]['type'] == 'release'):
                 releases.append(versions[i]['id'])
             else:
                 snapshots.append(versions[i]['id'])
-
-        sn = inquirer.prompt([inquirer.Confirm('snapshots', message="Show Snapshots", default=False)])['snapshots']
-        if sn:
+        
+        if (ch[0] in c):
             v = inquirer.prompt([inquirer.List('version', message='Select Version', choices=releases+snapshots)])['version']
         else:
             v = inquirer.prompt([inquirer.List('version', message='Select Version', choices=releases)])['version']
 
         ver = versions.index(next(i for i in versions if i['id'] == v))
-        
         cli_ui.info('Selected Version:', cli_ui.bold, v, cli_ui.reset, 'ID:', cli_ui.bold, ver)
-        op = inquirer.prompt([inquirer.Confirm('op', message="Install Optifine (If Available)", default=True)])['op']
 
-        downloadVersion(ver, op)
+        downloadVersion(ver, (ch[2] in c), lwjgl3=(int(ver) < lwjgl3ver))
         launcherUI()
 
     if (c == 2):
@@ -406,7 +436,7 @@ def launcherUI():
         os.system('clear')
         cli_ui.info(cli_ui.bold, 'Model:', cli_ui.reset, model)
         cli_ui.info(cli_ui.bold, 'RAM:', cli_ui.reset, str(ram)+'MB')
-        cli_ui.info(cli_ui.bold, 'GPU Memory', cli_ui.reset, str(gpuram)+'MB\n')
+        cli_ui.info(cli_ui.bold, 'GPU Memory:', cli_ui.reset, str(gpuram)+'MB\n')
         
         recmem = 64
         if (ram > 1024):
@@ -424,6 +454,10 @@ def launcherUI():
         cli_ui.info_3('7 Advanced Options, A7 GL Driver, G2 GL (Fake KMS)')
         cli_ui.info_3('Then Reboot')
 
+        print('\n\n')
+
+        cli_ui.info('It is also recommended to run: ', cli_ui.bold, 'sudo apt upgrade -y')
+
         ch = ['Menu']
         choice = ch.index(inquirer.prompt([inquirer.List('c', message='Options', choices=ch)])['c'])
 
@@ -437,5 +471,3 @@ def launcherUI():
 
 createLauncherSettings()
 launcherUI()
-
-# TODO: USERNAME IS A MUST

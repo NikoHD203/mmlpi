@@ -35,8 +35,13 @@ echo "Type=Application" >> ${USER_HOME}/Desktop/mmlpi.desktop
 echo "Encoding=UTF-8" >> ${USER_HOME}/Desktop/mmlpi.desktop
 chmod +x ${USER_HOME}/Desktop/mmlpi.desktop
 echo ====================
-echo Done, Starting
+echo Permissions...
 echo ====================
-chmod -R 777 .
+chmod -R 777 ../mmlpi
 chmod +x mmlpi.py
-python3 mmlpi.py
+echo ====================
+echo Done!
+echo Start with Desktop Shortcut or
+echo cd mmlpi
+echo python3 mmlpi.py
+echo ====================
