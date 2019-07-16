@@ -378,7 +378,7 @@ def launch(ver):
     libraryList = versionInfo['libraries']
     verID = versionInfo['id']
     try:
-        argList = versionInfo['arguments']['game']
+        argList = [i for i in versionInfo['arguments']['game'] if type(i) == str]
     except KeyError:
         argList = versionInfo['minecraftArguments'].split(' ')
 
@@ -388,7 +388,7 @@ def launch(ver):
         libraryList.extend(verInfI['libraries'])
         libs.append(os.path.abspath(os.path.join(ROOTDIR, f'versions/{verID}/{verID}.jar')))
         try:
-            argList.extend(verInfI['arguments']['game'])
+            argList.extend([i for i in verInfI['arguments']['game'] if type(i) == str])
         except:
             argList.extend(verInfI['minecraftArguments'].split(' '))
     argList = list(dict.fromkeys(argList))

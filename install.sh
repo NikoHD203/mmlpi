@@ -11,6 +11,8 @@ echo ====================
 echo Installing Java, Python3
 echo ====================
 apt install python3 python3-pip openjdk-8-jre-headless -y
+#https://askubuntu.com/questions/695560/assistive-technology-not-found-awterror
+sed -i -e '/^assistive_technologies=/s/^/#/' /etc/java-*-openjdk/accessibility.properties
 echo ====================
 echo Clonning Repo...
 echo ====================
