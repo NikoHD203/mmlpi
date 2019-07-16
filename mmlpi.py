@@ -11,13 +11,14 @@ import sys
 import distutils.dir_util
 import cli_ui
 
+from packaging import version
 from psutil import virtual_memory
 from bs4 import BeautifulSoup
 from zipfile import ZipFile
 
 ROOTDIR = 'minecraft/'
 
-def downloadVersion(vid, optifine, lwjgl3=False):
+def downloadVersion(vid, lwjgl3=False):
 
     r = requests.get('https://launchermeta.mojang.com/mc/game/version_manifest.json')
     version = requests.get(r.json()['versions'][vid]['url']).json()
@@ -42,16 +43,15 @@ def downloadVersion(vid, optifine, lwjgl3=False):
     f.write(requests.get(version['downloads']['client']['url']).content)
     f.close()
 
+    f = open(os.path.join(clientPath, f'{version["id"]}.json'), 'w')
+    f.write(json.dumps(version))
+    f.close()
+
     cli_ui.info(f"Downloaded {version['id']}.jar")
 
-    if optifine:
-        of = getOptifineURL(version['id'])
-        if not of:
-            cli_ui.warning('No Optifine')
-        else:
-            installOptifine(version['id'], of)
-
-    getStartScript(version["id"], version['mainClass'], libPaths, nativesPath)
+    #getStartScript(version["id"], version['mainClass'], libPaths, nativesPath, False)
+    cli_ui.info('Done!')
+    input('Press Enter To Continue...')
 
 def downloadLibraries(lol, lwjgl3=False, lwjgl3arch='arm32'): #List of Libraries
     libsPath = os.path.abspath(os.path.join(ROOTDIR, 'libraries/'))
@@ -165,11 +165,12 @@ def downloadRPiNatives():
         f.close()
 
         counter += 1
-        cli_ui.info(f'Downloaded {os.path.basename(i)}')
+        cli_ui.info_count(counter, len(natives), f'Downloaded {os.path.basename(i)}')
         cli_ui.info_progress(f'ARM Libraries', counter, len(natives))
         
-def getStartScript(v, mainClass, libs, natives):
+def getStartScript(v, mainClass, libs, natives, optifine):
     mcjar = os.path.abspath(os.path.join(ROOTDIR, f'versions/{v}/{v}.jar'))
+
     libs = ':'.join(libs) + f':{mcjar}'
 
     home = os.path.expanduser("~")
@@ -180,7 +181,8 @@ def getStartScript(v, mainClass, libs, natives):
         'gameDir': os.path.abspath(ROOTDIR),
         'cp': libs,
         'version': v,
-        'natives': natives
+        'natives': natives,
+        'optifine': optifine
     })
     f = open(p, 'w')
     f.write(json.dumps(cur))
@@ -189,35 +191,92 @@ def getStartScript(v, mainClass, libs, natives):
     cli_ui.info('Added to Launcher')
 
 
-def installOptifine(ver, url):
+def installOptifine(ver):
+    legacyVersions = {
+        '1.6.2': 'OptiFine_1.6.2_HD_U_B5',
+        '1.5.2': 'OptiFine_1.5.2_HD_U_D5',
+        '1.5.1': 'OptiFine_1.5.1_HD_U_D1',
+        '1.5.0': 'OptiFine_1.5.0_HD_U_A7',
+        '1.4.6': 'OptiFine_1.4.6_HD_U_D5',
+        '1.4.5': 'OptiFine_1.4.5_HD_U_D8',
+        '1.4.4': 'OptiFine_1.4.4_HD_U_D2',
+        '1.4.3': 'OptiFine_1.4.3_HD_U_C1',
+        '1.4.2': 'OptiFine_1.4.2_HD_U_B5',
+        '1.4.1': 'OptiFine_1.4.1_HD_U_A5',
+        '1.4.0': 'OptiFine_1.4.0_HD_U_A3',
+        '1.3.2': 'OptiFine 1.3.2_HD_U_B4',
+        '1.2.5': 'OptiFine 1.2.5_HD_C6',
+        '1.2.3': 'OptiFine 1.2.3_HD_B',
+        '1.1': 'OptiFine 1.1_HD_D6',
+        '1.0.0': 'OptiFine 1.0.0_HD_D3'
+    }
+    if (ver in legacyVersions.keys()):
+        url = getOptifineURL(f'http://optifine.net/adload.php?f={legacyVersions[ver]}.zip')
+        if not url:
+            cli_ui.error('Error Downloading OptiFine')
+            input("Press Enter To Continue...")
+        else:
+            cli_ui.info('Installing Legacy OptiFine...')
+            installLegacyOptifineOrForge(ver, url)
+            cli_ui.info('Done')
     
-    optifine = requests.get(url)
-    libPath = os.path.abspath(os.path.join(ROOTDIR, f'libraries/optifine/OptiFine/{ver}/'))
-    if not os.path.isdir(libPath):
-        os.makedirs(libPath)
-    f = open(os.path.join(libPath, 'Optifine.jar'), 'wb')
-    f.write(optifine.content)
-    f.close()
+    else:
+        url = findOptifineURL(ver)
+        if not url:
+            cli_ui.error('No OptiFine Found!')
+            input("Press Enter to Continue...")
+        else:
+            cli_ui.warning('Modern Versions of OptiFine Require Manual Installation!')
+            if inquirer.confirm('Continue?', default=True):
+                cli_ui.info('Please Wait...')
+
+                f = open(os.path.abspath(os.path.join(ROOTDIR, f'versions/{ver}/optifine.jar')), 'wb')
+                f.write(requests.get(url).content)
+                f.close()
+
+                f = open(os.path.abspath(os.path.join(ROOTDIR, 'launcher_profiles.json')), 'w')
+                f.write(json.dumps({"profiles": {}}))
+                f.close()
+
+                cli_ui.info(cli_ui.bold, '===========================')
+                cli_ui.info(cli_ui.bold, cli_ui.yellow, 'IMPORTANT:')
+                cli_ui.info_1('Change Folder To:')
+                cli_ui.info_2(cli_ui.bold, os.path.abspath(ROOTDIR))
+                cli_ui.info_1('Then Press Install')
+                cli_ui.info(cli_ui.bold, '===========================')
+
+                f = open(os.devnull, "w")
+                subprocess.call(['java', '-jar', os.path.abspath(os.path.join(ROOTDIR, f'versions/{ver}/optifine.jar'))], stdout=f)
+
+                os.remove(os.path.abspath(os.path.join(ROOTDIR, f'versions/{ver}/optifine.jar')))
+                os.remove(os.path.abspath(os.path.join(ROOTDIR, 'launcher_profiles.json')))
+                
+                cli_ui.info('Done!')
+                input('Press Enter To Continue...')
+
+def installLegacyOptifineOrForge(ver, url):
+    mod = requests.get(url)
 
     old = os.getcwd()
     os.chdir(os.path.join(ROOTDIR, f'versions/{ver}'))
 
-    f = open('optifine.jar', 'wb')
-    f.write(optifine.content)
+    f = open('mod.jar', 'wb')
+    f.write(mod.content)
     f.close()
 
-    cli_ui.info('Downloaded Optifine')
+    cli_ui.info('Download Successful')
 
     with ZipFile(f'{ver}.jar') as z:
         z.extractall('mc/')
     os.remove(f'{ver}.jar')
 
-    with ZipFile(os.path.join('optifine.jar')) as z:
-        z.extractall('optifine/')
-    os.remove('optifine.jar')
+    with ZipFile(os.path.join('mod.jar')) as z:
+        z.extractall('mod/')
+    os.remove('mod.jar')
 
-    distutils.dir_util.copy_tree('optifine/', 'mc/')
-    shutil.rmtree(os.path.join('mc', 'META-INF'))
+    distutils.dir_util.copy_tree('mod/', 'mc/')
+    if (os.path.isdir(os.path.join('mc', 'META-INF'))):
+        shutil.rmtree(os.path.join('mc', 'META-INF'))
 
     zipf = ZipFile(f'{ver}.jar', 'w')
     os.chdir('mc/')
@@ -229,27 +288,44 @@ def installOptifine(ver, url):
     os.chdir('../')
 
     shutil.rmtree('mc/')
-    shutil.rmtree('optifine/')
+    shutil.rmtree('mod/')
     
     os.chdir(old)
 
-    cli_ui.info('Patched with Optifine')
+    cli_ui.info('Patch Succesful')
+    input('Press Enter to Continue...')
 
-
-def getOptifineURL(v):
+def findOptifineURL(v):
     try:
         r = requests.get('https://optifine.net/downloads').text
         soup = BeautifulSoup(r, 'html.parser')
         o = []
         for link in soup.findAll('a'):
-            if (f'//optifine.net/adloadx?f=OptiFine_{v}' in link.get('href')):
+            if (f'http://optifine.net/adloadx?f=OptiFine_{v}_HD' in link.get('href')):
                 o.append(link.get('href'))
+        if (len(o) == 0):
+            for link in soup.findAll('a'):
+                if (f'http://optifine.net/adloadx?f=preview_OptiFine_{v}_HD' in link.get('href')):
+                    o.append(link.get('href'))
+            if (len(o) > 0):
+                cli_ui.info('Using Preview Version of OptiFine')
         o.sort()
-        r = requests.get(o[-1]).text
+        return getOptifineURL(o[-1])
+    except Exception:
+        return False
+
+def getOptifineURL(n):
+    try:
+        r = requests.get(n).text
         soup = BeautifulSoup(r, 'html.parser')
         for link in soup.findAll('a'):
-            if (f'downloadx?f=OptiFine_' in link.get('href')):
-                return 'https://optifine.net/' + link.get('href')
+            #download?... = legacy, downloadx?... = modern
+
+            validFileNames = ['download?f=OptiFine_', 'downloadx?f=OptiFine_',
+                            'downloadx?f=preview_OptiFine_']
+
+            if any(fn in link.get('href') for fn in validFileNames):
+                return 'http://optifine.net/' + link.get('href')
     except:
         return False
 
@@ -273,11 +349,9 @@ def auth(username, email, password):
 def createLauncherSettings():
     home = os.path.expanduser("~")
     p = os.path.abspath(os.path.join(home, '.mclauncher'))
-
     if not os.path.isfile(p): #Safe 
         f = open(p, 'w')
         f.write(json.dumps({
-            "versions": [],
             'auth': {
                 'username': '',
                 'email': '',
@@ -286,32 +360,93 @@ def createLauncherSettings():
         }))
         f.close()
 
-def launch(vid):
-
+def launch(ver):
     home = os.path.expanduser("~")
     p = os.path.abspath(os.path.join(home, '.mclauncher'))
     data = json.loads(open(p, 'r').read())
-    
     a = auth(data['auth']['username'], data['auth']['email'], data['auth']['password'])
+    versionInfo = json.loads(open(os.path.abspath(os.path.join(ROOTDIR, f'versions/{ver}/{ver}.json'))).read())
+    
+    # If more than 3GB RAM then 2GB
+    if int(virtual_memory().total / (1024*1024)) > 3072:
+        ram = '-Xmx2048M'
+    else:
+        ram = '-Xmx1024M'
 
-    cmd = ['java', '-Xmn128M', '-Xmx1024M',
+    # Patches for inherited version
+    libs = []
+    libraryList = versionInfo['libraries']
+    verID = versionInfo['id']
+    try:
+        argList = versionInfo['arguments']['game']
+    except KeyError:
+        argList = versionInfo['minecraftArguments'].split(' ')
+
+    if ('inheritsFrom' in versionInfo.keys()):
+        verID = versionInfo['inheritsFrom']
+        verInfI = json.loads(open(os.path.abspath(os.path.join(ROOTDIR, f'versions/{verID}/{verID}.json'))).read())
+        libraryList.extend(verInfI['libraries'])
+        libs.append(os.path.abspath(os.path.join(ROOTDIR, f'versions/{verID}/{verID}.jar')))
+        try:
+            argList.extend(verInfI['arguments']['game'])
+        except:
+            argList.extend(verInfI['minecraftArguments'].split(' '))
+    argList = list(dict.fromkeys(argList))
+
+    # Get library List
+    lwjgl3 = False
+    for lib in libraryList:
+        #Parse Java Lib Names
+        name = lib['name'].split(':')
+        path = name[0].replace('.', '/') + '/' + '/'.join(name[1:])
+        filename = f"{name[-2]}-{name[-1]}.jar"
+        f = os.path.abspath(os.path.join(ROOTDIR, f'libraries/{path}/{filename}'))
+        if (os.path.isfile(f)):
+            libs.append(f)    
+        if (name[-2] == 'lwjgl' and version.parse(name[-1]) >= version.parse('3.0.0')):
+            lwjgl3 = True
+    libs.append(os.path.abspath(os.path.join(ROOTDIR, f'versions/{ver}/{ver}.jar')))
+    classPath = ':'.join(libs)
+
+    # Get together launch command
+    cmd = ['java', '-Xmn128M', ram,
             '-XX:+UseConcMarkSweepGC',
             '-XX:+CMSIncrementalMode',
-            '-XX:-UseAdaptiveSizePolicy',
-            f'-Djava.library.path={data["versions"][vid]["natives"]}',
-            '-cp', data["versions"][vid]['cp'],
-            data["versions"][vid]['mainClass'],
-            '--username', data['auth']['username'],
-            '--uuid', a[1],
-            '--version', data["versions"][vid]['version'],
-            '--userProperties', '{}',
-            '--gameDir', data["versions"][vid]["gameDir"],
-            '--assetsDir', f'{data["versions"][vid]["gameDir"]}/assets',
-            '--assetIndex', data["versions"][vid]['version'],
-            '--accessToken', a[0],
-            '--tweakClass', 'optifine.OptiFineTweaker']
+            '-XX:-UseAdaptiveSizePolicy']
+    if (lwjgl3):
+        nativesPath = os.path.abspath(os.path.join(ROOTDIR, 'bin/natives/LWJGL3/'))
+    else:
+        nativesPath = os.path.abspath(os.path.join(ROOTDIR, 'bin/natives/'))
+    cmd.append(f'-Djava.library.path={nativesPath}')
+    cmd.append('-cp')
+    cmd.append(classPath)
+    cmd.append(versionInfo['mainClass'])
+    
+    userType = 'mojang'
+    if (a[0] == 'xxx' or a[1] == 'xxx'):
+        userType = 'offline'
+
+    argum = [('${auth_player_name}', data['auth']['username']),
+            ('${version_name}', versionInfo['id']),
+            ('${game_directory}', os.path.abspath(ROOTDIR)),
+            ('${assets_root}', os.path.abspath(os.path.join(ROOTDIR, 'assets/'))),
+            ('${assets_index_name}', verID),
+            ('${auth_uuid}', a[1]),
+            ('${auth_access_token}', a[0]),
+            ('${auth_session}', a[0]),
+            ('${game_assets}', os.path.abspath(os.path.join(ROOTDIR, 'assets/'))),
+            ('${user_type}', userType),
+            ('${version_type}', versionInfo['type'])]
+
+    for arg in argList:
+        if (type(arg) == str):
+            for i in argum:
+                arg = arg.replace(i[0], i[1])
+            cmd.append(arg)
 
     subprocess.run(cmd)
+    input('Press Enter To Continue...')
+    launcherUI()
 
 def launcherUI():
     home = os.path.expanduser("~")
@@ -322,37 +457,38 @@ def launcherUI():
     cli_ui.info('Welcome to', cli_ui.red, cli_ui.bold, 'Raspberry Pi', cli_ui.green, 'Minecraft', cli_ui.reset, 'Launcher!')
     cli_ui.info('Created by Me\n')
 
-    ch = ['Play', 'Install', 'Login', 'Troubleshooting', 'Exit']
-    c = inquirer.prompt([inquirer.List('menu', message='Select an Option:', choices=ch)])
+    ch = ['Play', 'Install', 'Login', 'Tools', 'Exit']
+    c = inquirer.prompt([inquirer.List('menu', message='Select an Option', choices=ch)])
     c = ch.index(c['menu'])
 
-    if (c == 0):
+    if (c == 0): #Play
         os.system('clear')
 
         if data['auth']['username'] == '':
             cli_ui.warning('You Must Set Username To Play!')
-            inquirer.prompt([inquirer.Text(name='a', message='Press Enter To Continue')])
+            input("Press Enter to Continue...")
             launcherUI()
 
-        versions = [i['version'] for i in data['versions']]
+        versions = os.listdir(os.path.abspath(os.path.join(ROOTDIR, 'versions')))
+        versions.sort()
         versions.append('Main Menu')
         ch = inquirer.prompt([inquirer.List('version', message='Select Version', choices=versions)])
-        version = versions.index(ch['version'])
+        version = ch['version']
 
-        if (version == len(versions)-1):
+        if (versions.index(version) == len(versions)-1):
             launcherUI()
         else:
             os.system('clear')
-            cli_ui.info(f'Staring Version {ch["version"]}')
+            cli_ui.info(f'Staring Version {version}')
             launch(version)
 
-    if (c == 1):
+    if (c == 1): # Install
         os.system('clear')
         versions = requests.get('https://launchermeta.mojang.com/mc/game/version_manifest.json').json()['versions']
 
         cli_ui.warning('LWJGL3 Versions Are Poorly Optimized and Buggy!')
 
-        ch = ['Snapshots', 'Experimental (LWJGL3)', 'Install Optifine (If Available)']
+        ch = ['Snapshots', 'Experimental (LWJGL3)']
         c = inquirer.prompt([inquirer.Checkbox('c', message='Filters:', choices=ch)])['c']
         
         lwjgl3ver = versions.index(next(i for i in versions if i["id"] == "1.12.2"))  
@@ -363,7 +499,7 @@ def launcherUI():
         
         releases = []
         snapshots = []
-        for i in range(firstVer, 274):
+        for i in range(firstVer, len(versions)-1):
             if (versions[i]['type'] == 'release'):
                 releases.append(versions[i]['id'])
             else:
@@ -377,10 +513,10 @@ def launcherUI():
         ver = versions.index(next(i for i in versions if i['id'] == v))
         cli_ui.info('Selected Version:', cli_ui.bold, v, cli_ui.reset, 'ID:', cli_ui.bold, ver)
 
-        downloadVersion(ver, (ch[2] in c), lwjgl3=(int(ver) < lwjgl3ver))
+        downloadVersion(ver, lwjgl3=(int(ver) < lwjgl3ver))
         launcherUI()
 
-    if (c == 2):
+    if (c == 2): #Login
         os.system('clear')
         cli_ui.info("Email And Password Can Be Invalid If You Wish To Play Offline")
         login = inquirer.prompt([
@@ -389,7 +525,7 @@ def launcherUI():
             inquirer.Password(name='password', message='Enter Password')
         ])
 
-        def cont():
+        def __cont():
             choices = ['Test', 'Save', 'Discard']
             choice = choices.index(inquirer.prompt([inquirer.List('ch', message='Select Option', choices=choices)])['ch'])
 
@@ -404,7 +540,7 @@ def launcherUI():
                     cli_ui.error('Invalid Username')
                 else:
                     cli_ui.info(cli_ui.bold, cli_ui.green, 'Username Valid')
-                cont()
+                __cont()
             
             if (choice == 1):
                 cdata = json.loads(open(p, 'r').read())
@@ -419,55 +555,205 @@ def launcherUI():
                 launcherUI()
 
         os.system('clear')
-        cont()
+        __cont()
 
-    if (c == 3):
-        try:
-            model = open('/sys/firmware/devicetree/base/model', 'r').read().replace('\x00', '')
-        except Exception:
-            model = 'Not Raspberry Pi'
-        ram = int(virtual_memory().total / (1024*1024))
-        try:
-            gpuram = subprocess.check_output(['vcgencmd', 'get_mem', 'gpu']).decode('utf-8')
-            gpuram = re.findall(r'\d+', gpuram)[0]
-        except Exception:
-            gpuram = 0
+    if (c == 3): #Tools
+        # For Recursion
+        def __toolsUI():
+            try:
+                model = open('/sys/firmware/devicetree/base/model', 'r').read().replace('\x00', '')
+            except Exception:
+                model = 'Not Raspberry Pi'
+            ram = int(virtual_memory().total / (1024*1024))
+            try:
+                gpuram = subprocess.check_output(['vcgencmd', 'get_mem', 'gpu']).decode('utf-8')
+                gpuram = re.findall(r'\d+', gpuram)[0]
+            except Exception:
+                gpuram = 0
 
-        os.system('clear')
-        cli_ui.info(cli_ui.bold, 'Model:', cli_ui.reset, model)
-        cli_ui.info(cli_ui.bold, 'RAM:', cli_ui.reset, str(ram)+'MB')
-        cli_ui.info(cli_ui.bold, 'GPU Memory:', cli_ui.reset, str(gpuram)+'MB\n')
-        
-        recmem = 64
-        if (ram > 1024):
-            recmem = 128
-        if (ram > 3500):
-            recmem = 256
+            recmem = 64
+            if (ram > 1024):
+                recmem = 128
+            if (ram > 3500):
+                recmem = 256
 
-        cli_ui.info('Recommended GPU Memory: ', cli_ui.bold, str(recmem)+'MB')
-        cli_ui.info_2('You can change this by running:')
-        cli_ui.info_3('sudo raspi-config')
-        cli_ui.info_3('7 Advanced Options, A3 Memory Split')
-        cli_ui.info_3('Then Reboot')
-        cli_ui.info_2('It is also recommended to change the GL Driver')
-        cli_ui.info_3('sudo raspi-config')
-        cli_ui.info_3('7 Advanced Options, A7 GL Driver, G2 GL (Fake KMS)')
-        cli_ui.info_3('Then Reboot')
+            os.system('clear')
+            cli_ui.info('Model:', cli_ui.bold, model)
+            cli_ui.info('RAM:', cli_ui.bold, str(ram)+'MB')
+            cli_ui.info('GPU Memory:', cli_ui.bold, str(gpuram)+'MB', cli_ui.reset, 'Recommended:', cli_ui.bold, str(recmem)+'MB\n')
+            
+            ch = ['Set Recommended GPU Memory', 'Set New GL Driver', 'Install OptiFine', 
+            'Fix LaunchWrapper' ,'Install Forge', 'Update System (apt upgrade)', 'Menu']
+            choice = ch.index(inquirer.prompt([inquirer.List('tools', message='Tools', choices=ch)])['tools'])
+            
+            if (choice == 0): #GPU Memory
+                if os.path.isfile('/boot/config.txt'):
+                    bootconfig = open('/boot/config.txt', 'r').read()
+                    bootconfig = bootconfig.replace('gpu_mem=', '#gpu_mem=')
+                    bootconfig += f'\ngpu_mem={recmem}'
+                    
+                    try:
+                        f = open('/boot/config.txt', 'w')
+                        f.write(bootconfig)
+                        f.close()
+                    except PermissionError:
+                        cli_ui.error('You Need To Start This Script as Root!')
 
-        print('\n\n')
+                    if inquirer.confirm('To Apply Changes You Need To Reboot. Reboot Now?', default=True):
+                        os.system('sudo reboot')
+                else:
+                    cli_ui.error('/boot/config.txt Not Found, Not a Raspberry Pi')
+                
+            if (choice == 1): #GL Driver
+                if os.path.isfile('/boot/config.txt'):
+                    bootconfig = open('/boot/config.txt', 'r').read()
+                    bootconfig = bootconfig.replace('dtoverlay=vc4-fkms-v3d', '#dtoverlay=vc4-fkms-v3d')
+                    bootconfig += '\ndtoverlay=vc4-fkms-v3d'
+                    
+                    try:
+                        f = open('/boot/config.txt', 'w')
+                        f.write(bootconfig)
+                        f.close()
+                    except PermissionError:
+                        cli_ui.error('You Need To Start This Script as Root!')
 
-        cli_ui.info('It is also recommended to run: ', cli_ui.bold, 'sudo apt upgrade -y')
+                    if inquirer.confirm('To Apply Changes You Need To Reboot. Reboot Now?', default=True):
+                        os.system('sudo reboot')
+                else:
+                    cli_ui.error('/boot/config.txt Not Found, Not a Raspberry Pi')
+            
+            if (choice == 2): #Install Optifine
+                os.system('clear')
+            
+                versions = os.listdir(os.path.abspath(os.path.join(ROOTDIR, 'versions/')))
+                versions.sort()
+                ver = inquirer.prompt([inquirer.List('ver', message='Select Version', choices=versions)])['ver']
+                installOptifine(ver)
 
-        ch = ['Menu']
-        choice = ch.index(inquirer.prompt([inquirer.List('c', message='Options', choices=ch)])['c'])
+            if (choice == 3):
+                versions = os.listdir(os.path.abspath(os.path.join(ROOTDIR, 'versions/')))
+                versions.sort()
+                ver = inquirer.prompt([inquirer.List('ver', message='Select Version', choices=versions)])['ver']
+                fixLaunchWrapper(ver)
 
-        if (choice == 0):
-            launcherUI()
+            if (choice == 4):
+                os.system('clear')
+                versions = os.listdir(os.path.abspath(os.path.join(ROOTDIR, 'versions/')))
+                versions.sort()
+                ver = inquirer.prompt([inquirer.List('ver', message='Select Version', choices=versions)])['ver']
+                installForge(ver)
+
+            if (choice == 5): #apt upgrade
+                subprocess.Popen(['sudo', 'apt', 'upgrade', '-y'])
+            
+            if (choice == 6): #Menu
+                if (os.getuid() == 0):
+                    os.system('clear')
+                    cli_ui.warning('Running as Root! You Need To Restart The Script!')
+                    sys.exit(0)
+                launcherUI()
+
+            __toolsUI() #On task done
+        __toolsUI()
+
 
     if (c == 4):
         os.system('clear')
         cli_ui.info('Thank You!')
         sys.exit(0)
+
+def installForge(ver):
+    cli_ui.info('Please Wait...')
+    url = f'https://files.minecraftforge.net/maven/net/minecraftforge/forge/index_{ver}.html'
+    soup = BeautifulSoup(requests.get(url).text, 'html.parser')
+    versions = []
+    for link in soup.find_all('a'):
+        l = link.get('href')
+        if l != None:
+            if f'forge-{ver}' in l and '-installer.jar' in l:
+                versions.append(l)
+    versions.sort()
+
+    if (len(versions) != 0):
+        url = f'https://files.minecraftforge.net{versions[-1]}'
+        cli_ui.warning('Modern Versions of Forge Require Manual Installation!')
+        if inquirer.confirm('Continue?', default=True):
+            cli_ui.info('Please Wait...')
+            r = requests.get(url).content
+            f = open('forge.jar', 'wb')
+            f.write(r)
+            f.close()
+
+            f = open(os.path.abspath(os.path.join(ROOTDIR, 'launcher_profiles.json')), 'w')
+            f.write(json.dumps({"profiles": {}}))
+            f.close()
+
+            cli_ui.info(cli_ui.bold, '===========================')
+            cli_ui.info(cli_ui.bold, cli_ui.yellow, 'IMPORTANT:')
+            cli_ui.info_1('Change Folder To:')
+            cli_ui.info_2(cli_ui.bold, os.path.abspath(ROOTDIR))
+            cli_ui.info_1('Then Press OK')
+            cli_ui.info(cli_ui.bold, '===========================')
+
+            f = open(os.devnull, "w")
+            subprocess.call(['java', '-jar', 'forge.jar'], stdout=f)
+            
+            os.remove('forge.jar')
+            os.remove(os.path.abspath(os.path.join(ROOTDIR, 'launcher_profiles.json')))
+            if (os.path.isfile('forge.jar.log')):
+                os.remove('forge.jar.log')
+            modsF = os.path.abspath(os.path.join(ROOTDIR, 'mods/'))
+            if not os.path.isdir(modsF):
+                os.mkdir(modsF)
+            cli_ui.info('Done!')
+            input('Press Enter To Continue...')
+    else:
+        versions = []
+        for link in soup.find_all('a'):
+            l = link.get('href')
+            if l != None:
+                if f'forge-{ver}' in l and '-universal.zip' in l:
+                    versions.append(l)
+        versions.sort()
+
+        if (len(versions) == 0):
+            cli_ui.info(cli_ui.red, cli_ui.bold, 'ERROR: No Forge Versions Found!')
+            input('Press Enter to Continue...')
+        else:
+            url = f'https://files.minecraftforge.net{versions[-1]}'
+            installLegacyOptifineOrForge(ver, url)
+            modsF = os.path.abspath(os.path.join(ROOTDIR, 'mods/'))
+            if (os.path.isdir(modsF)):
+                os.mkdir(modsF)
+            cli_ui.info('Done!')
+
+def fixLaunchWrapper(ver):
+    path = os.path.abspath(os.path.join(ROOTDIR, f'versions/{ver}/{ver}.json'))
+    verjson = json.loads(open(path, 'r').read())
+
+    for lib in verjson['libraries']:
+        if (lib['name'].split(':')[-2] == 'launchwrapper'):
+            Lpath = lib['name'].split(':')[0].replace('.', '/')
+            Lpath += '/' + 'launchwrapper/1.12/launchwrapper-1.12.jar'
+            Lpath = os.path.abspath(os.path.join(ROOTDIR, f'libraries/{Lpath}'))
+            if not os.path.isdir(os.path.dirname(Lpath)):
+                os.makedirs(os.path.dirname(Lpath))
+            url = 'https://download.uskarian.net/mirrors/libraries.minecraft.net/net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar'
+            r = requests.get(url)
+            f = open(Lpath, 'wb')
+            f.write(r.content)
+            f.close()
+            n = verjson['libraries'].index(lib)
+            l = lib['name'].split(':')
+            l[-1] = '1.12'
+            l = ':'.join(l)
+            verjson['libraries'][n] = {'name': l}
+            f = open(path, 'w')
+            f.write(json.dumps(verjson))
+            f.close()
+            cli_ui.info('Updated LaunchWrapper')
+    input('Press Enter to Continue...')
+
 
 createLauncherSettings()
 launcherUI()
