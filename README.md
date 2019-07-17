@@ -13,6 +13,14 @@
     sudo pip3 install -r requirements.txt
     python3 mmlpi.py
 
+
+
+    # If you get Assistive Technology not found: org.GNOME.Accessibility.AtkWrapper error:
+
+    sed -i -e '/^assistive_technologies=/s/^/#/' /etc/java-*-openjdk/accessibility.properties
+
+    # Source: https://askubuntu.com/questions/695560/assistive-technology-not-found-awterror
+
 #### Tested Versions (RPi 4 4GB):
 
 |Version | Works | OptiFine | Forge|
@@ -41,3 +49,6 @@
 1. Versions 1.8.9, 1.7.10 - Malformed JSON error. Reinstall, Clean Install doesn't work
 
 2. Forge and OptiFine (<1.14) has missing launchwrapper. Dirty (partial) fix is in Tools > Fix LaunchWrapper
+
+#### Credits:
+- rpiMike for LWJGL2 Raspberry Pi Natives

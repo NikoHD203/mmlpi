@@ -20,6 +20,9 @@ ROOTDIR = 'minecraft/'
 
 def downloadVersion(vid, lwjgl3=False):
 
+    # vid = index of version in version_manifest.json
+    # lwjgl3 = for versions above 1.12
+
     r = requests.get('https://launchermeta.mojang.com/mc/game/version_manifest.json')
     version = requests.get(r.json()['versions'][vid]['url']).json()
 
@@ -49,7 +52,6 @@ def downloadVersion(vid, lwjgl3=False):
 
     cli_ui.info(f"Downloaded {version['id']}.jar")
 
-    #getStartScript(version["id"], version['mainClass'], libPaths, nativesPath, False)
     cli_ui.info('Done!')
     input('Press Enter To Continue...')
 
@@ -60,7 +62,6 @@ def downloadLibraries(lol, lwjgl3=False, lwjgl3arch='arm32'): #List of Libraries
     counter = 0
 
     libs = []
-
     for i in lol:
         if 'artifact' in i['downloads']:
             path = os.path.join(libsPath, i['downloads']['artifact']['path'])
@@ -126,6 +127,9 @@ def downloadAssets(url, v):
         cli_ui.info_progress('Assets', counter, len(assets['objects'].keys()))
 
 def downloadLWJGL3Natives(arch='arm32'):
+    # Downloads LWJGL3 Natives from nightly official builds
+    # All natives must be saved as name and name32 otherwise it gives an error
+
     natives = ['liblwjgl.so', 'libopenal.so', 'libglfw.so', 'liblwjgl_opengl.so', 'liblwjgl_stb.so']
 
     nativesPath = os.path.abspath(os.path.join(ROOTDIR, 'bin/natives/LWJGL3'))
@@ -149,6 +153,8 @@ def downloadLWJGL3Natives(arch='arm32'):
         cli_ui.info_progress('Natives', counter, len(natives))
 
 def downloadRPiNatives():
+
+    # rpiMike's libraries. Need to change
     natives = ['https://dl.dropboxusercontent.com/s/4oxcvz3ky7a3x6f/liblwjgl.so',
                 'https://dl.dropboxusercontent.com/s/m0r8e01jg2og36z/libopenal.so']
 
@@ -168,30 +174,13 @@ def downloadRPiNatives():
         cli_ui.info_count(counter, len(natives), f'Downloaded {os.path.basename(i)}')
         cli_ui.info_progress(f'ARM Libraries', counter, len(natives))
         
-def getStartScript(v, mainClass, libs, natives, optifine):
-    mcjar = os.path.abspath(os.path.join(ROOTDIR, f'versions/{v}/{v}.jar'))
-
-    libs = ':'.join(libs) + f':{mcjar}'
-
-    home = os.path.expanduser("~")
-    p = os.path.abspath(os.path.join(home, '.mclauncher'))
-    cur = json.loads(open(p, 'r').read())
-    cur['versions'].append({
-        'mainClass': mainClass,
-        'gameDir': os.path.abspath(ROOTDIR),
-        'cp': libs,
-        'version': v,
-        'natives': natives,
-        'optifine': optifine
-    })
-    f = open(p, 'w')
-    f.write(json.dumps(cur))
-    f.close()
-
-    cli_ui.info('Added to Launcher')
-
 
 def installOptifine(ver):
+
+    # Installs optifine
+    # Legacy versions = versions that aren't on official website
+    # Need to be installed by repacking minecraft.jar
+
     legacyVersions = {
         '1.6.2': 'OptiFine_1.6.2_HD_U_B5',
         '1.5.2': 'OptiFine_1.5.2_HD_U_D5',
@@ -255,6 +244,9 @@ def installOptifine(ver):
                 input('Press Enter To Continue...')
 
 def installLegacyOptifineOrForge(ver, url):
+
+    # Repack minecraft.jar with zip from url
+
     mod = requests.get(url)
 
     old = os.getcwd()
@@ -296,6 +288,9 @@ def installLegacyOptifineOrForge(ver, url):
     input('Press Enter to Continue...')
 
 def findOptifineURL(v):
+
+    # Scrapper for official OptiFine Website
+
     try:
         r = requests.get('https://optifine.net/downloads').text
         soup = BeautifulSoup(r, 'html.parser')
@@ -315,6 +310,7 @@ def findOptifineURL(v):
         return False
 
 def getOptifineURL(n):
+    # The download url has random parameter, scrapper
     try:
         r = requests.get(n).text
         soup = BeautifulSoup(r, 'html.parser')
@@ -330,6 +326,7 @@ def getOptifineURL(n):
         return False
 
 def auth(username, email, password):
+    # Authentication. If error, returns xxx
     r = requests.post('https://authserver.mojang.com/authenticate', json={
         "agent": {"name": "Minecraft","version": 1},
         "username": email,
@@ -347,6 +344,9 @@ def auth(username, email, password):
 
 
 def createLauncherSettings():
+    # Creates (if doesn't exist) hidden .mclauncher file
+    # It stores auth
+
     home = os.path.expanduser("~")
     p = os.path.abspath(os.path.join(home, '.mclauncher'))
     if not os.path.isfile(p): #Safe 
@@ -361,6 +361,9 @@ def createLauncherSettings():
         f.close()
 
 def launch(ver):
+
+    # Starts the game
+
     home = os.path.expanduser("~")
     p = os.path.abspath(os.path.join(home, '.mclauncher'))
     data = json.loads(open(p, 'r').read())
@@ -426,6 +429,7 @@ def launch(ver):
     if (a[0] == 'xxx' or a[1] == 'xxx'):
         userType = 'offline'
 
+    # Argument replacer
     argum = [('${auth_player_name}', data['auth']['username']),
             ('${version_name}', versionInfo['id']),
             ('${game_directory}', os.path.abspath(ROOTDIR)),
@@ -449,6 +453,9 @@ def launch(ver):
     launcherUI()
 
 def launcherUI():
+
+    # CLI UI
+
     home = os.path.expanduser("~")
     p = os.path.abspath(os.path.join(home, '.mclauncher'))
     data = json.loads(open(p, 'r').read())
@@ -663,6 +670,9 @@ def launcherUI():
         sys.exit(0)
 
 def installForge(ver):
+
+    # Website scrapper for official Forge Website
+
     cli_ui.info('Please Wait...')
     url = f'https://files.minecraftforge.net/maven/net/minecraftforge/forge/index_{ver}.html'
     soup = BeautifulSoup(requests.get(url).text, 'html.parser')
@@ -728,6 +738,10 @@ def installForge(ver):
             cli_ui.info('Done!')
 
 def fixLaunchWrapper(ver):
+
+    # Some versions of OptiFine (and Forge) don't download launchwrapper library
+    # This downloads it and updates.
+
     path = os.path.abspath(os.path.join(ROOTDIR, f'versions/{ver}/{ver}.json'))
     verjson = json.loads(open(path, 'r').read())
 
