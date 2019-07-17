@@ -21,6 +21,9 @@
 
     # Source: https://askubuntu.com/questions/695560/assistive-technology-not-found-awterror
 
+#### Credits:
+- rpiMike for LWJGL2 Raspberry Pi Natives
+
 #### Tested Versions (RPi 4 4GB):
 
 |Version | Works | OptiFine | Forge|
@@ -50,5 +53,3 @@
 
 2. Forge and OptiFine (<1.14) has missing launchwrapper. Dirty (partial) fix is in Tools > Fix LaunchWrapper
 
-#### Credits:
-- rpiMike for LWJGL2 Raspberry Pi Natives

@@ -154,9 +154,9 @@ def downloadLWJGL3Natives(arch='arm32'):
 
 def downloadRPiNatives():
 
-    # rpiMike's libraries. Need to change
-    natives = ['https://dl.dropboxusercontent.com/s/4oxcvz3ky7a3x6f/liblwjgl.so',
-                'https://dl.dropboxusercontent.com/s/m0r8e01jg2og36z/libopenal.so']
+    # Custom build of libjwgl.so and libopenal.so
+    natives = ['https://raw.githubusercontent.com/Marekkon5/mmlpi/master/liblwjgl.so',
+                'https://raw.githubusercontent.com/Marekkon5/mmlpi/master/libopenal.so']
 
     nativesPath = os.path.abspath(os.path.join(ROOTDIR, 'bin/natives'))
     if not os.path.isdir(nativesPath):
