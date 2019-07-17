@@ -14,12 +14,11 @@
     python3 mmlpi.py
 
 
-
-    # If you get Assistive Technology not found: org.GNOME.Accessibility.AtkWrapper error:
+If you get Assistive Technology not found: org.GNOME.Accessibility.AtkWrapper error:
 
     sed -i -e '/^assistive_technologies=/s/^/#/' /etc/java-*-openjdk/accessibility.properties
 
-    # Source: https://askubuntu.com/questions/695560/assistive-technology-not-found-awterror
+Source: https://askubuntu.com/questions/695560/assistive-technology-not-found-awterror
 
 #### Credits:
 - rpiMike for LWJGL2 Raspberry Pi Natives
