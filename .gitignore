@@ -4,3 +4,8 @@ minecraft/
 download.py
 launcher.py
 login.py
+deprecated.py
+*.log
+LIBS/
+compilelwjgl3.txt
+.mclauncher

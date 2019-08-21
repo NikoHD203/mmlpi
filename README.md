@@ -2,53 +2,62 @@
 
 ### Minecraft Modern (Java Edition) Launcher For Raspberry Pi
 
+### Version 1.1 Now with GUI!
+
 #### Install:
 ```curl https://raw.githubusercontent.com/Marekkon5/mmlpi/master/install.sh | sudo bash```
 
+NOTE: If you want to update, remove the old version: ```rm -rf mmlpi```
+
 #### Manual Installation:
 
-    sudo apt install git libalut0 libalut-dev mesa-utils python3 python3-pip openjdk-8-jre-headless -y
-    git clone https://github.com/Marekkon5/mmlpi mmlpi/
-    cd mmlpi/
-    sudo pip3 install -r requirements.txt
-    python3 mmlpi.py
+    sudo apt update
+    sudo apt install -y git
+    git clone https://github.com/Marekkon5/mmlpi
+    cd mmlpi
+    sudo bash localInstall.sh
 
-
-If you get Assistive Technology not found: org.GNOME.Accessibility.AtkWrapper error:
-
-    sed -i -e '/^assistive_technologies=/s/^/#/' /etc/java-*-openjdk/accessibility.properties
-
-Source: https://askubuntu.com/questions/695560/assistive-technology-not-found-awterror
 
 #### Credits:
-- rpiMike for LWJGL2 Raspberry Pi Natives
+- rpiMike and jdonald - for testing and help with LWJGL3 and Java
+- http://rogerallen.github.io/jetson/2014/07/31/minecraft-on-jetson-tk1/
 
-#### Tested Versions (RPi 4 4GB):
+
+#### Tested Versions (RPi 4 4GB, Raspbian Buster arm32):
 
 |Version | Works | OptiFine | Forge|
 |:------:|:-----:|:--------:|:----:|
-|1.14.3| :heavy_check_mark: | :x: | :heavy_check_mark: |
-|1.13.2| :x: |||
-|1.12.2| :heavy_check_mark: | :heavy_check_mark: *| :x: |
-|1.11.2| :heavy_check_mark: | :heavy_check_mark: *| :x: |
-|1.10.2| :heavy_check_mark: | :heavy_check_mark: *| :x: |
-|1.9.4| :heavy_check_mark: | :heavy_check_mark: *| :x: |
-|1.8.9| :x: |||
-|1.7.10| :x: |||
+|1.12.2| :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+|1.11.2| :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+|1.10.2| :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+|1.9.4| :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+|1.8.9| :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+|1.7.10| :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
 |1.6.4| :heavy_check_mark: | :heavy_minus_sign: | :heavy_minus_sign: |
 |1.5.2| :heavy_check_mark: | :heavy_check_mark: | :x: |
 |1.4.7| :heavy_check_mark: | :heavy_minus_sign: | :heavy_check_mark: |
 |1.4.5| :heavy_check_mark: | :heavy_check_mark: | :x: |
 |1.3.2| :heavy_check_mark: | :o: | :heavy_check_mark: |
-&ast; - Needs patched launchwrapper (Tools > Fix LaunchWrapper)
+
 - :heavy_check_mark: - Works
 - :x: - Not Working
 - :heavy_minus_sign: - Doesn't Exist
 - :o: - Other Error
 
-#### Known Issues:
+NOTE: LWJGL3 Versions (1.13 and above) are currently NOT WORKING!
 
-1. Versions 1.8.9, 1.7.10 - Malformed JSON error. Reinstall, Clean Install doesn't work
 
-2. Forge and OptiFine (<1.14) has missing launchwrapper. Dirty (partial) fix is in Tools > Fix LaunchWrapper
+#### Scripts:
+- ```install.sh``` - Clones the Repo and starts localInstall.sh
+- ```localInstall.sh``` - Installs dependencies and mmlpi
+- ```installJava.sh``` - Installs Oracle Java. ```bash installJava.sh <arm32|arm64>```
+- ```mmlpi.py``` - MMLPi Launcher
+- ```mmlpiCore.py``` - Install, Launch functions
+- ```mmlpiGUI.py``` - GUI
+- ```mmlpiMonitor.py``` - Monitor Window. Can be launched standalone ```python3 mmlpiMonitor.py```
+
+#### 3rd Party Natives and Libraries Sources:
+- https://github.com/Marekkon5/mmlpilibraries
+- https://www.lwjgl.org/browse/nightly/linux/
+
 
