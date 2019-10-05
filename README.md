@@ -12,7 +12,7 @@ NOTE: If you want to update, remove the old version: ```rm -rf mmlpi```
 Supported OSes: Gentoo, Raspbian (or any Debian based OS.)
 Both arm32 and arm64 are supported.
 
-Gentoo: The install script will show many errors (most of them can be ignored), and will take significantly longer to install.
+Gentoo: The install script will show errors (most of them can be ignored), and will take significantly longer to install.
 
 #### Manual Installation:
 

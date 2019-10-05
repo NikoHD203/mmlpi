@@ -7,7 +7,7 @@ if [[ ! -z $(which apt-get) ]]; then
     echo Installing Python3, Git
     echo ====================
     apt install git python3 -y
-
+fi
 echo ====================
 echo Clonning Repo...
 echo ====================
