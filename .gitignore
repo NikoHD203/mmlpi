@@ -9,3 +9,5 @@ deprecated.py
 LIBS/
 compilelwjgl3.txt
 .mclauncher
+localInstall.sh
+installJava.sh

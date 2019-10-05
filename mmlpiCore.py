@@ -8,8 +8,8 @@ import re
 import sys
 
 import distutils.dir_util
-import cli_ui
 
+from tqdm import tqdm
 from packaging import version
 from zipfile import ZipFile
 
@@ -34,17 +34,22 @@ def downloadVersion(vid, forceAssets=False, lwjglver=2, archbits=32, progressCal
     if not os.path.isdir(clientPath):
         os.makedirs(clientPath)
     
-    f = open(os.path.join(clientPath, f"{version['id']}.jar"), 'wb')
-    f.write(requests.get(version['downloads']['client']['url']).content)
-    f.close()
+    pbar = tqdm(total=version['downloads']['client']['size'], unit='B', unit_scale=True, unit_divisor=1024)
+    r = requests.get(version['downloads']['client']['url'], stream=True)
+    with open(os.path.join(clientPath, f"{version['id']}.jar"), 'wb') as f:
+        for chunk in r.iter_content(chunk_size=1024):
+            f.write(chunk)
+            pbar.update(1024)
+        f.close()
+    pbar.close()
+
+    print(f"Downloaded {version['id']}.jar")
 
     f = open(os.path.join(clientPath, f'{version["id"]}.json'), 'w')
     f.write(json.dumps(version))
     f.close()
 
-    cli_ui.info(f"Downloaded {version['id']}.jar")
-
-    cli_ui.info('Done!')
+    print('Done!')
 
     if finishCallback != None:
         finishCallback()
@@ -53,10 +58,11 @@ def downloadLibraries(lol, lwjgl3=False, lwjgl3arch='arm32', progressCallback=No
     libsPath = os.path.abspath(os.path.join(ROOTDIR, 'libraries/'))
     if not os.path.isdir(libsPath):
         os.makedirs(libsPath)
-    counter = 0
+    
+    pbar = tqdm(total=len(lol))
 
     for i in lol:
-        counter+=1
+
         if 'artifact' in i['downloads']:
             path = os.path.join(libsPath, i['downloads']['artifact']['path'])
             folder = os.path.dirname(path)
@@ -67,9 +73,6 @@ def downloadLibraries(lol, lwjgl3=False, lwjgl3arch='arm32', progressCallback=No
                 f = open(path, 'wb')
                 f.write(requests.get(url).content)
                 f.close()
-                cli_ui.info_count(counter-1, len(lol), f"Downloaded {i['name']}")
-            else:
-                cli_ui.info_count(counter-1, len(lol), f"{i['name']} Exists")
 
         if 'classifiers' in i['downloads'] and 'natives-linux' in i['downloads']['classifiers']:
             path = os.path.join(libsPath, i['downloads']['classifiers']['natives-linux']['path'])
@@ -87,14 +90,12 @@ def downloadLibraries(lol, lwjgl3=False, lwjgl3arch='arm32', progressCallback=No
                         url = i['downloads']['classifiers']['natives-linux']['url']
                 f.write(requests.get(url).content)
                 f.close()
-                cli_ui.info_count(counter-1, len(lol), f"Downloaded {i['name']}")
-            else:
-                cli_ui.info_count(counter-1, len(lol), f"{i['name']} Exists")
 
-        cli_ui.info_progress('Libraries', counter, len(lol))
+        pbar.update(1)
         if progressCallback != None:
-            per = int((counter/len(lol))*100)
+            per = int((lol.index(i)/len(lol))*100)
             progressCallback(per)
+    pbar.close()
 
 def downloadAssets(url, v, force=False, progressCallback=None):
     r = requests.get(url)
@@ -108,29 +109,34 @@ def downloadAssets(url, v, force=False, progressCallback=None):
 
     assets = r.json()
 
+    totalSize = 0
+    for i in assets['objects'].keys():
+        totalSize += assets['objects'][i]['size']
+    pbar = tqdm(total=totalSize, unit='B', unit_scale=True, unit_divisor=1024)
+
     assetsPath = os.path.abspath(os.path.join(ROOTDIR, 'assets/objects'))
     if not os.path.isdir(assetsPath):
         os.makedirs(assetsPath)
-    counter = 0
+    
     for i in assets['objects'].keys():
         h = assets['objects'][i]['hash']
         folder = os.path.join(assetsPath, h[0:2])
         if not os.path.isdir(folder):
             os.makedirs(folder)
-        counter += 1
+
         if os.path.isfile(os.path.join(folder, h)) and not force:
-            cli_ui.info_count(counter-1, len(assets['objects'].keys()), f'{i} Exists')
+            pbar.update(assets['objects'][i]['size'])
         else:
             f = open(os.path.join(folder, h), 'wb')
             url = f'http://resources.download.minecraft.net/{h[0:2]}/{h}'
             f.write(requests.get(url).content)
             f.close()
-            cli_ui.info_count(counter-1, len(assets['objects'].keys()), f'Downloaded {i}')
-        
-        cli_ui.info_progress('Assets', counter, len(assets['objects'].keys()))
-        if progressCallback != None:
-            per = int((counter/len(assets['objects'].keys()))*100)
-            progressCallback(per)
+            pbar.update(assets['objects'][i]['size'])
+                
+            if progressCallback != None:
+                per = int((list(assets['objects'].keys()).index(i)/len(assets['objects'].keys()))*100)
+                progressCallback(per)
+    pbar.close()
 
 def downloadNatives(ver, bits, progressCallback=None):
     #Downloads Natives
@@ -149,7 +155,7 @@ def downloadNatives(ver, bits, progressCallback=None):
         url = f'https://build.lwjgl.org/nightly/linux/arm{bits}/'
         files = ['liblwjgl.so', 'libopenal.so', 'libglfw.so', 'liblwjgl_opengl.so', 'liblwjgl_stb.so']
 
-    counter = 0
+    pbar = tqdm(total=len(files))
     for i in files:
         u = url + i
         data = requests.get(u).content
@@ -161,11 +167,11 @@ def downloadNatives(ver, bits, progressCallback=None):
         f.write(data)
         f.close()
 
-        cli_ui.info_count(counter, len(files), f'Downloaded {i}')
+        pbar.update(1)
         if progressCallback != None:
-            per = int((counter/(len(files)-1))*100)
+            per = int((files.index(i)/(len(files)-1))*100)
             progressCallback(per)
-        counter += 1
+    pbar.close()
 
 def installLegacyOptifineOrForge(ver, url):
 
@@ -180,7 +186,7 @@ def installLegacyOptifineOrForge(ver, url):
     f.write(mod.content)
     f.close()
 
-    cli_ui.info('Download Successful')
+    print('Download Successful')
 
     with ZipFile(f'{ver}.jar') as z:
         z.extractall('mc/')
@@ -208,7 +214,7 @@ def installLegacyOptifineOrForge(ver, url):
     
     os.chdir(old)
 
-    cli_ui.info('Patch Succesful')
+    print('Patch Succesful')
 
 def auth(username, email, password):
     # Authentication. If error, returns xxx

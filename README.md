@@ -9,13 +9,20 @@
 
 NOTE: If you want to update, remove the old version: ```rm -rf mmlpi```
 
+Supported OSes: Gentoo, Raspbian (or any Debian based OS.)
+Both arm32 and arm64 are supported.
+
+Gentoo: The install script will show many errors (most of them can be ignored), and will take significantly longer to install.
+
 #### Manual Installation:
 
     sudo apt update
     sudo apt install -y git
     git clone https://github.com/Marekkon5/mmlpi
     cd mmlpi
-    sudo bash localInstall.sh
+    sudo python3 installer.py
+    # This is because of dependencies installation.
+    sudo python3 installer.py step2
 
 
 #### Credits:
@@ -24,6 +31,9 @@ NOTE: If you want to update, remove the old version: ```rm -rf mmlpi```
 
 
 #### Tested Versions (RPi 4 4GB, Raspbian Buster arm32):
+
+Versions 1.13 and above are supported, but depend on the latest LWJGL3 Builds.
+Some versions do work, some don't. New binaries are releasing frequently, so I am not including those versions in the list.
 
 |Version | Works | OptiFine | Forge|
 |:------:|:-----:|:--------:|:----:|
@@ -48,9 +58,8 @@ NOTE: LWJGL3 Versions (1.13 and above) are currently NOT WORKING!
 
 
 #### Scripts:
-- ```install.sh``` - Clones the Repo and starts localInstall.sh
-- ```localInstall.sh``` - Installs dependencies and mmlpi
-- ```installJava.sh``` - Installs Oracle Java. ```bash installJava.sh <arm32|arm64>```
+- ```install.sh``` - Clones the Repo and starts installer.py
+- ```installer.py``` - Installs dependencies and mmlpi
 - ```mmlpi.py``` - MMLPi Launcher
 - ```mmlpiCore.py``` - Install, Launch functions
 - ```mmlpiGUI.py``` - GUI
